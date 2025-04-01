@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { FileText, Activity, Brain, Plus, History, ArrowLeft } from 'lucide-react';
+import React from 'react';
+import { FileText, Activity, Brain, Plus, History, ArrowLeft, Users } from 'lucide-react';
 import NeuroConductionForm from './components/NeuroConductionForm';
 import MyographyForm from './components/MyographyForm';
 import SpecialStudiesForm from './components/SpecialStudiesForm';
@@ -7,16 +7,28 @@ import DiagnosticSelector from './components/DiagnosticSelector';
 import PatientInfoForm from './components/PatientInfoForm';
 import StudyProtocol from './components/StudyProtocol';
 import DiagnosticAnalysis from './components/DiagnosticAnalysis';
+import PatientModule from './components/patients/PatientModule';
 import { StudyType } from './types';
+import { useAppStore } from './store/appStore';
 
 function App() {
-  // Estados principales
-  const [selectedStudy, setSelectedStudy] = useState<StudyType | null>(null);
-  const [currentView, setCurrentView] = useState<string>('home');
-  const [patientInfo, setPatientInfo] = useState(null);
-  const [selectedDiagnosis, setSelectedDiagnosis] = useState<string | null>(null);
-  const [studyData, setStudyData] = useState({});
-  const [studyStep, setStudyStep] = useState<string>('patient');
+  // Usar la tienda global en lugar de estados locales
+  const {
+    currentView, 
+    setCurrentView,
+    selectedStudy,
+    setSelectedStudy,
+    studyStep,
+    setStudyStep,
+    patientInfo,
+    setPatientInfo,
+    selectedDiagnosis,
+    setSelectedDiagnosis,
+    studyData,
+    setStudyData,
+    startNewStudy,
+    navigateBack
+  } = useAppStore();
 
   // Opciones de estudio tradicionales
   const studyOptions = [
@@ -44,15 +56,7 @@ function App() {
     ? studyOptions.find(opt => opt.id === selectedStudy)?.component 
     : null;
 
-  // Manejadores de eventos
-  const handleStartNewStudy = () => {
-    setCurrentView('new-study');
-    setStudyStep('patient');
-    setPatientInfo(null);
-    setSelectedDiagnosis(null);
-    setStudyData({});
-  };
-
+  // Manejadores de eventos simplificados
   const handlePatientInfoSubmit = (info: any) => {
     setPatientInfo(info);
     setStudyStep('diagnosis');
@@ -68,28 +72,13 @@ function App() {
     setStudyStep('analysis');
   };
 
-  const navigateBack = () => {
-    if (currentView === 'new-study') {
-      switch (studyStep) {
-        case 'diagnosis':
-          setStudyStep('patient');
-          break;
-        case 'protocol':
-          setStudyStep('diagnosis');
-          break;
-        case 'analysis':
-          setStudyStep('protocol');
-          break;
-        case 'patient':
-          setCurrentView('home');
-          break;
-      }
-    } else {
-      setCurrentView('home');
-      setSelectedStudy(null);
-    }
+  const handleStartStudyWithPatient = (patient: any) => {
+    setPatientInfo(patient);
+    setCurrentView('new-study');
+    setStudyStep('diagnosis');
   };
 
+  // Renderizar el contenido del estudio guiado
   const renderNewStudyContent = () => {
     switch (studyStep) {
       case 'patient':
@@ -129,9 +118,9 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {currentView === 'home' && !selectedStudy && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <button
-                onClick={handleStartNewStudy}
+                onClick={startNewStudy}
                 className="p-6 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200 text-left"
               >
                 <div className="flex items-center space-x-3">
@@ -142,6 +131,21 @@ function App() {
                 </div>
                 <p className="mt-2 text-gray-600">
                   Iniciar un nuevo estudio siguiendo un protocolo basado en diagnóstico
+                </p>
+              </button>
+              
+              <button
+                onClick={() => setCurrentView('patients')}
+                className="p-6 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200 text-left"
+              >
+                <div className="flex items-center space-x-3">
+                  <Users className="h-6 w-6 text-purple-500" />
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Pacientes
+                  </h2>
+                </div>
+                <p className="mt-2 text-gray-600">
+                  Gestionar registros de pacientes y ver su historial
                 </p>
               </button>
               
@@ -169,7 +173,10 @@ function App() {
                   return (
                     <button
                       key={option.id}
-                      onClick={() => setSelectedStudy(option.id)}
+                      onClick={() => {
+                        setSelectedStudy(option.id);
+                        setCurrentView('individual-study');
+                      }}
                       className="p-6 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200 text-left"
                     >
                       <div className="flex items-center space-x-3">
@@ -230,10 +237,10 @@ function App() {
           </div>
         )}
 
-        {currentView === 'home' && selectedStudy && (
+        {currentView === 'individual-study' && selectedStudy && (
           <div className="bg-white shadow rounded-lg p-6">
             <button
-              onClick={() => setSelectedStudy(null)}
+              onClick={navigateBack}
               className="mb-4 text-blue-500 hover:text-blue-700 flex items-center"
             >
               <ArrowLeft className="h-4 w-4 mr-1" /> Volver
@@ -245,13 +252,25 @@ function App() {
         {currentView === 'history' && (
           <div className="bg-white shadow rounded-lg p-6">
             <button
-              onClick={() => setCurrentView('home')}
+              onClick={navigateBack}
               className="mb-4 text-blue-500 hover:text-blue-700 flex items-center"
             >
               <ArrowLeft className="h-4 w-4 mr-1" /> Volver
             </button>
             <h2 className="text-xl font-semibold mb-4">Historial de Estudios</h2>
             <p className="text-gray-600">Esta funcionalidad estará disponible próximamente.</p>
+          </div>
+        )}
+
+        {currentView === 'patients' && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <button
+              onClick={navigateBack}
+              className="mb-4 text-blue-500 hover:text-blue-700 flex items-center"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" /> Volver
+            </button>
+            <PatientModule onStartStudyWithPatient={handleStartStudyWithPatient} />
           </div>
         )}
       </main>

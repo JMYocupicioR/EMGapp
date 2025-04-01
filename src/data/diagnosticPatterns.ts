@@ -1,92 +1,59 @@
-// src/data/diagnosticPatterns.ts
-
 export const diagnosticPatterns = {
   carpaTunnel: {
-    id: 'carpaTunnel',
     name: 'Síndrome del túnel del carpo',
-    protocolSteps: ['medianSensory', 'medianMotor'],
+    description: 'Neuropatía por compresión del nervio mediano a nivel de la muñeca',
     keyFindings: [
-      {
-        parameter: 'medianSensory.latency',
-        condition: '>3.5',
-        importance: 'high',
-      },
-      {
-        parameter: 'medianSensory.amplitude',
-        condition: '<20',
-        importance: 'high',
-      },
-      {
-        parameter: 'medianMotor.latency',
-        condition: '>4.5',
-        importance: 'high',
-      }
-    ]
+      { parameter: 'Latencia sensitiva del nervio mediano', condition: '>3.5ms', importance: 'high' },
+      { parameter: 'Amplitud sensitiva del nervio mediano', condition: '<20µV', importance: 'medium' },
+      { parameter: 'Latencia motora del nervio mediano', condition: '>4.5ms', importance: 'high' },
+      { parameter: 'Conducción sensitiva palma-muñeca vs. conducción antebrazo', condition: 'Asimetría', importance: 'high' }
+    ],
+    protocolSteps: ['medianSensory', 'medianMotor']
   },
   ulnarElbow: {
-    id: 'ulnarElbow',
     name: 'Neuropatía cubital en el codo',
-    protocolSteps: ['ulnarSensory', 'ulnarMotor'],
+    description: 'Compresión del nervio cubital a nivel del canal epitrócleo-olecraneano',
     keyFindings: [
-      {
-        parameter: 'ulnarMotor.velocity',
-        condition: '<50',
-        importance: 'high',
-      },
-      {
-        parameter: 'ulnarSensory.amplitude',
-        condition: '<15',
-        importance: 'medium',
-      }
-    ]
+      { parameter: 'Velocidad de conducción a través del codo', condition: '<50m/s', importance: 'high' },
+      { parameter: 'Caída de amplitud a través del codo', condition: '>20%', importance: 'high' },
+      { parameter: 'Conducción motora del nervio cubital', condition: 'Bloqueo de conducción', importance: 'medium' },
+      { parameter: 'Latencia sensitiva del nervio cubital', condition: 'Prolongada', importance: 'medium' }
+    ],
+    protocolSteps: []
   },
   diabeticPoly: {
-    id: 'diabeticPoly',
     name: 'Polineuropatía diabética',
-    protocolSteps: ['suralSensory', 'tibialMotor', 'peronealMotor'],
+    description: 'Afectación simétrica, distal, sensitivo-motora de los nervios periféricos',
     keyFindings: [
-      {
-        parameter: 'suralSensory.amplitude',
-        condition: '<6',
-        importance: 'high',
-      },
-      {
-        parameter: 'tibialMotor.velocity',
-        condition: '<40',
-        importance: 'high',
-      },
-      {
-        parameter: 'peronealMotor.amplitude',
-        condition: '<2',
-        importance: 'medium',
-      }
-    ]
+      { parameter: 'Amplitud del potencial sensitivo del nervio sural', condition: '<6µV', importance: 'high' },
+      { parameter: 'Velocidad de conducción del nervio tibial', condition: '<40m/s', importance: 'high' },
+      { parameter: 'Amplitud del potencial motor del nervio peroneo', condition: '<2mV', importance: 'medium' },
+      { parameter: 'Patrón de afectación', condition: 'Simétrico y distal', importance: 'high' }
+    ],
+    protocolSteps: []
   },
   cidp: {
-    id: 'cidp',
     name: 'Polineuropatía inflamatoria desmielinizante crónica',
-    protocolSteps: ['medianMotor', 'ulnarMotor', 'tibialMotor', 'peronealMotor'],
+    description: 'Proceso autoinmune que afecta a la mielina de los nervios periféricos',
     keyFindings: [
-      {
-        parameter: 'medianMotor.velocity',
-        condition: '<38',
-        importance: 'high',
-      },
-      {
-        parameter: 'ulnarMotor.velocity',
-        condition: '<38',
-        importance: 'high',
-      },
-      {
-        parameter: 'tibialMotor.velocity',
-        condition: '<38',
-        importance: 'high',
-      },
-      {
-        parameter: 'peronealMotor.velocity',
-        condition: '<38',
-        importance: 'high',
-      }
-    ]
+      { parameter: 'Velocidad de conducción del nervio mediano', condition: '<38m/s', importance: 'high' },
+      { parameter: 'Latencia distal motora', condition: 'Muy prolongada', importance: 'high' },
+      { parameter: 'Bloqueos de conducción', condition: 'Presentes', importance: 'high' },
+      { parameter: 'Dispersión temporal', condition: 'Presente', importance: 'medium' },
+      { parameter: 'Ondas F', condition: 'Ausentes o muy prolongadas', importance: 'medium' }
+    ],
+    protocolSteps: []
+  },
+  als: {
+    name: 'Esclerosis lateral amiotrófica',
+    description: 'Enfermedad neurodegenerativa que afecta a las motoneuronas',
+    keyFindings: [
+      { parameter: 'Potenciales de fasciculación', condition: 'Presentes en múltiples territorios', importance: 'high' },
+      { parameter: 'Potenciales de fibrilación', condition: 'Presentes', importance: 'high' },
+      { parameter: 'Ondas positivas agudas', condition: 'Presentes', importance: 'medium' },
+      { parameter: 'Potenciales de unidad motora', condition: 'Grandes, polifásicos', importance: 'high' },
+      { parameter: 'Patrón de reclutamiento', condition: 'Reducido', importance: 'high' }
+    ],
+    protocolSteps: []
   }
 };

@@ -38,3 +38,40 @@ export interface AnalysisResult {
   interpretation: string[];
   status: 'normal' | 'abnormal';
 }
+
+// Tipos para el módulo de pacientes
+export interface Patient {
+  id: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  sex: string;
+  contact: {
+    phone: string;
+    email?: string;
+    address?: string;
+  };
+  medicalHistory?: {
+    previousDiseases: string[];
+    surgeries: string[];
+    currentMedications: string[];
+    allergies: string[];
+    familyHistory?: string;
+  };
+  mainDiagnosis?: string;
+  consultReason?: string;
+  additionalNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Tipos para estudios de pacientes
+export interface PatientStudy {
+  id: string;
+  patientId: string;
+  studyType: StudyType;
+  timestamp: string;
+  data: any;
+  results: any;
+  conclusion?: string;
+}
