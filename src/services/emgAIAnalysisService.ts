@@ -1,9 +1,18 @@
 // src/services/emgAIAnalysisService.ts
 import { Study } from '../types';
+import { AIAnalysis, AIAnalysisRequest, AIAnalysisResult } from '../types/aiAnalysis';
+import { saveAIAnalysis, getLatestAIAnalysisForStudy, deleteAIAnalysesForStudy } from './aiAnalysisStorageService';
 
 // Configuración para la API de OpenAI
 const API_URL = 'https://api.openai.com/v1/chat/completions';
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
+
+// Configuración por defecto del modelo
+const DEFAULT_MODEL_CONFIG = {
+  model: 'gpt-4-turbo',
+  temperature: 0.2,
+  maxTokens: 1500
+};
 
 /**
  * Solicita un análisis especializado de electromiografía usando IA
@@ -16,6 +25,11 @@ export async function getEMGAnalysis(
     muscleType?: string; 
     fitnessLevel?: string;
     medicalHistory?: string;
+  },
+  options?: {
+    saveAnalysis?: boolean;
+    patientId?: string;
+    modelOverrides?: Partial<typeof DEFAULT_MODEL_CONFIG>;
   }
 ): Promise<string> {
   try {
@@ -35,7 +49,7 @@ export async function getEMGAnalysis(
         'Authorization': `Bearer ${API_KEY}`
       },
       body: JSON.stringify({
-        model: "gpt-4",
+        model: options?.modelOverrides?.model || DEFAULT_MODEL_CONFIG.model,
         messages: [
           {
             role: "system",
@@ -46,8 +60,8 @@ export async function getEMGAnalysis(
             content: prompt
           }
         ],
-        temperature: 0.2, // Valor bajo para respuestas más consistentes y precisas
-        max_tokens: 1500
+        temperature: options?.modelOverrides?.temperature || DEFAULT_MODEL_CONFIG.temperature,
+        max_tokens: options?.modelOverrides?.maxTokens || DEFAULT_MODEL_CONFIG.maxTokens
       })
     });
     
@@ -57,10 +71,146 @@ export async function getEMGAnalysis(
       throw new Error(data.error?.message || 'Error al conectar con la API de IA');
     }
     
-    return data.choices[0].message.content;
+    const analysisContent = data.choices[0].message.content;
+    
+    // Si se solicita guardar el análisis
+    if (options?.saveAnalysis && emgData.id) {
+      const aiAnalysis: Partial<AIAnalysis> = {
+        studyId: emgData.id,
+        patientId: options.patientId,
+        type: 'emg',
+        content: analysisContent,
+        modelInfo: {
+          model: options?.modelOverrides?.model || DEFAULT_MODEL_CONFIG.model,
+          version: '1.0',
+          parameters: {
+            temperature: options?.modelOverrides?.temperature || DEFAULT_MODEL_CONFIG.temperature,
+            maxTokens: options?.modelOverrides?.maxTokens || DEFAULT_MODEL_CONFIG.maxTokens
+          }
+        },
+        metadata: {
+          dataType: 'emg',
+          promptLength: prompt.length,
+          responseLength: analysisContent.length,
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+      saveAIAnalysis(aiAnalysis);
+    }
+    
+    return analysisContent;
   } catch (error) {
     console.error('Error en análisis EMG por IA:', error);
     return `Error al realizar el análisis: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+  }
+}
+
+/**
+ * Analiza datos de EMG mediante IA para una solicitud estructurada
+ */
+export async function analyzeEMGData(request: AIAnalysisRequest): Promise<AIAnalysisResult> {
+  try {
+    const studyId = typeof request.studyData.id === 'string' ? request.studyData.id : 
+                   (request.studyData.studyId || crypto.randomUUID());
+    
+    // Preparar el prompt según el tipo de dato
+    const prompt = prepareEMGPrompt(request.studyData, request.patientData || {});
+    
+    // Configurar parámetros del modelo
+    const modelConfig = {
+      model: request.modelConfig?.model || DEFAULT_MODEL_CONFIG.model,
+      temperature: request.modelConfig?.temperature || DEFAULT_MODEL_CONFIG.temperature,
+      maxTokens: request.modelConfig?.maxTokens || DEFAULT_MODEL_CONFIG.maxTokens,
+      endpoint: request.modelConfig?.endpoint || API_URL
+    };
+    
+    // Realizar la solicitud a la API
+    const response = await fetch(modelConfig.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+      },
+      body: JSON.stringify({
+        model: modelConfig.model,
+        messages: [
+          {
+            role: "system",
+            content: getSystemPrompt(request.options?.detailLevel || 'detailed', 
+                                    request.options?.languageStyle || 'technical')
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: modelConfig.temperature,
+        max_tokens: modelConfig.maxTokens
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'Error al conectar con la API de IA');
+    }
+    
+    const analysisContent = data.choices[0].message.content;
+    
+    // Crear objeto de análisis
+    const analysis: AIAnalysis = {
+      id: crypto.randomUUID(),
+      studyId: studyId,
+      patientId: request.patientData?.patientId,
+      type: 'emg',
+      content: analysisContent,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      modelInfo: {
+        model: modelConfig.model,
+        version: request.modelConfig?.version || '1.0',
+        parameters: {
+          temperature: modelConfig.temperature,
+          maxTokens: modelConfig.maxTokens
+        }
+      },
+      metadata: {
+        detailLevel: request.options?.detailLevel || 'detailed',
+        languageStyle: request.options?.languageStyle || 'technical',
+        promptLength: prompt.length,
+        responseLength: analysisContent.length
+      }
+    };
+    
+    // Guardar análisis si se requiere
+    if (request.options?.saveToDashboard !== false) {
+      saveAIAnalysis(analysis);
+    }
+    
+    return {
+      analysis,
+      success: true,
+      processedData: {
+        summary: extractSummary(analysisContent),
+        keyPoints: extractKeyPoints(analysisContent)
+      }
+    };
+  } catch (error) {
+    console.error('Error en análisis avanzado de EMG:', error);
+    
+    return {
+      analysis: {
+        id: crypto.randomUUID(),
+        studyId: request.studyData.id || request.studyData.studyId || '',
+        type: 'emg',
+        content: `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      success: false,
+      errorMessage: `Error al realizar el análisis: ${error instanceof Error ? error.message : 'Error desconocido'}`
+    };
   }
 }
 
@@ -148,26 +298,116 @@ function prepareEMGPrompt(emgData: any, patientData: any): string {
 }
 
 /**
+ * Obtiene el prompt de sistema según el nivel de detalle y estilo requerido
+ */
+function getSystemPrompt(detailLevel: 'basic' | 'intermediate' | 'detailed', 
+                        languageStyle: 'technical' | 'simplified' | 'patient-friendly'): string {
+  let basePrompt = 'Eres un neurofisiólogo especializado en electromiografía con más de 20 años de experiencia clínica. ';
+  
+  // Ajustar según nivel de detalle
+  if (detailLevel === 'basic') {
+    basePrompt += 'Proporciona un análisis conciso y directo, centrándote solo en los hallazgos más relevantes. ';
+  } else if (detailLevel === 'intermediate') {
+    basePrompt += 'Proporciona un análisis equilibrado con los hallazgos clave y sus implicaciones principales. ';
+  } else {
+    basePrompt += 'Proporciona un análisis exhaustivo y detallado, cubriendo todos los aspectos relevantes de los datos. ';
+  }
+  
+  // Ajustar según estilo de lenguaje
+  if (languageStyle === 'technical') {
+    basePrompt += 'Utiliza terminología médica técnica apropiada para profesionales de la salud.';
+  } else if (languageStyle === 'simplified') {
+    basePrompt += 'Utiliza lenguaje técnico pero incluye explicaciones claras para profesionales no especializados en neurofisiología.';
+  } else {
+    basePrompt += 'Utiliza lenguaje accesible con mínimo de jerga técnica, apropiado para pacientes o familiares sin formación médica.';
+  }
+  
+  return basePrompt;
+}
+
+/**
+ * Extrae un resumen a partir del análisis completo
+ */
+function extractSummary(analysisText: string): string {
+  // Buscar secciones de conclusiones o resumen
+  const conclusionMatch = analysisText.match(/(?:##?\s*Conclusi[óo]n[:\s]*)([^#]+)/i);
+  if (conclusionMatch && conclusionMatch[1]) {
+    return conclusionMatch[1].trim().split('\n').slice(0, 3).join('\n');
+  }
+  
+  // Si no hay sección de conclusión, intentar con el primer párrafo
+  const paragraphs = analysisText.split('\n\n');
+  for (const paragraph of paragraphs) {
+    if (paragraph.length > 100 && !paragraph.startsWith('#')) {
+      return paragraph.trim();
+    }
+  }
+  
+  // Si todo falla, devolver los primeros 200 caracteres
+  return analysisText.substring(0, 200) + '...';
+}
+
+/**
+ * Extrae puntos clave del análisis
+ */
+function extractKeyPoints(analysisText: string): string[] {
+  const keyPoints: string[] = [];
+  
+  // Buscar listas con viñetas
+  const bulletPoints = analysisText.match(/(?:^|\n)[-*•]\s*(.+?)(?=\n|$)/g);
+  if (bulletPoints) {
+    return bulletPoints.map(point => 
+      point.replace(/^[-*•\s]+/, '').trim()
+    ).filter(point => point.length > 10).slice(0, 5);
+  }
+  
+  // Buscar frases que comienzan con "Se observa", "Se identifica", etc.
+  const observations = analysisText.match(/(?:^|\n)(?:Se\s+(?:observa|identifica|detecta|encuentra|nota)|Los\s+resultados\s+(?:muestran|indican)|El\s+análisis\s+(?:revela|muestra)).+?(?=\n|$)/gi);
+  if (observations) {
+    return observations.map(obs => obs.trim()).slice(0, 5);
+  }
+  
+  // Si no se encontraron puntos clave, devolver array vacío
+  return keyPoints;
+}
+
+/**
  * Guarda un análisis EMG por IA
  */
 export function saveEMGAnalysis(studyId: string, analysisContent: string): void {
-  const existingAnalysesJson = localStorage.getItem('emg_ai_analyses') || '{}';
-  const analyses = JSON.parse(existingAnalysesJson);
-  
-  analyses[studyId] = {
-    timestamp: new Date().toISOString(),
-    content: analysisContent
+  const analysis: Partial<AIAnalysis> = {
+    studyId,
+    type: 'emg',
+    content: analysisContent,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    modelInfo: {
+      model: DEFAULT_MODEL_CONFIG.model,
+      version: '1.0'
+    }
   };
   
-  localStorage.setItem('emg_ai_analyses', JSON.stringify(analyses));
+  saveAIAnalysis(analysis);
 }
 
 /**
  * Obtiene análisis EMG previos por IA
  */
 export function getEMGAnalysisHistory(studyId: string): { timestamp: string, content: string } | null {
-  const existingAnalysesJson = localStorage.getItem('emg_ai_analyses') || '{}';
-  const analyses = JSON.parse(existingAnalysesJson);
+  const latestAnalysis = getLatestAIAnalysisForStudy(studyId);
   
-  return analyses[studyId] || null;
+  if (!latestAnalysis) return null;
+  
+  return {
+    timestamp: latestAnalysis.updatedAt,
+    content: latestAnalysis.content
+  };
+}
+
+/**
+ * Elimina todos los análisis de EMG por IA para un estudio
+ */
+export function clearEMGAnalyses(studyId: string): boolean {
+  const deletedCount = deleteAIAnalysesForStudy(studyId);
+  return deletedCount > 0;
 }
