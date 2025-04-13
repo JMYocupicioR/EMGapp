@@ -1,9 +1,11 @@
+// src/components/DiagnosticAnalysis.tsx
 import React, { useState, useEffect } from 'react';
-import { Printer, Edit2, FileText, Check, Save, ArrowLeft } from 'lucide-react';
+import { Printer, Edit2, FileText, Check, Save, ArrowLeft, Brain } from 'lucide-react';
 import { analyzeDiagnostics } from '../utils/diagnosticAnalyzer';
 import { savePatientStudy } from '../services/patientStudyService';
 import { Patient } from '../types/patient';
 import { Study } from '../types';
+import EMGAIAnalysisPanel from './EMGAIAnalysisPanel';
 
 interface DiagnosticAnalysisProps {
   studyData: any;
@@ -32,6 +34,10 @@ const DiagnosticAnalysis: React.FC<DiagnosticAnalysisProps> = ({
   const [studyName, setStudyName] = useState('Estudio ENMG');
   const [observations, setObservations] = useState('');
   
+  // Estados para análisis de IA
+  const [showEmgAiAnalysis, setShowEmgAiAnalysis] = useState<boolean>(false);
+  const [emgAiAnalysis, setEmgAiAnalysis] = useState<string>('');
+  
   // Resultados del análisis
   const [results, setResults] = useState<any>(null);
 
@@ -49,7 +55,31 @@ const DiagnosticAnalysis: React.FC<DiagnosticAnalysisProps> = ({
       const generatedText = generateReportText();
       setReportText(generatedText);
     }
-  }, [results, patientInfo, observations]);
+  }, [results, patientInfo, observations, emgAiAnalysis]);
+  
+  // Manejador para guardar el análisis EMG de IA
+  const handleSaveEMGAIAnalysis = (analysisText: string) => {
+    setEmgAiAnalysis(analysisText);
+    // Incorporar el análisis a las observaciones o conclusión
+    const formattedAnalysis = 
+      "\n\n===== ANÁLISIS ESPECIALIZADO EMG - IA =====\n\n" + 
+      analysisText + 
+      "\n\n====================================";
+      
+    setObservations(prev => prev + formattedAnalysis);
+  };
+  
+  // Añadir una función para extraer datos del paciente para IA
+  const getPatientDataForAI = () => {
+    return {
+      age: patientInfo?.age || calculateAge(patient?.dateOfBirth),
+      gender: patientInfo?.gender || patient?.sex,
+      muscleType: studyData.muscleType || 'No especificado',
+      fitnessLevel: patientInfo?.fitnessLevel || 'No especificado',
+      medicalHistory: patientInfo?.relevantHistory || 
+        (patient?.medicalHistory?.previousDiseases?.join(', ') || 'No especificado')
+    };
+  };
   
   // Función auxiliar para obtener valores de referencia
   const getRefValue = (test: string, parameter: string): string => {
@@ -119,6 +149,8 @@ Estudio de electroneurografía ${results.primary.probability > 0.7 ? 'ANORMAL' :
 ${formatAbnormalFindings()}
 
 ${formatDifferentialDiagnoses()}
+
+${emgAiAnalysis ? '## ANÁLISIS ESPECIALIZADO DE EMG POR IA\n\n' + emgAiAnalysis : ''}
 
 ## OBSERVACIONES
 ${observations}
@@ -298,7 +330,8 @@ ${studyData.emgData.map((muscle: any) => `
         'neuroconduction', 
         studyToSave, 
         observations,
-        formatAbnormalFindings() + '\n' + formatDifferentialDiagnoses()
+        formatAbnormalFindings() + '\n' + formatDifferentialDiagnoses(),
+        emgAiAnalysis // Pasar el análisis EMG por IA
       );
       
       setSaveSuccess(true);
@@ -431,6 +464,31 @@ ${studyData.emgData.map((muscle: any) => `
                 <p className="text-gray-500 italic">No se encontraron diagnósticos diferenciales relevantes.</p>
               )}
             </div>
+          </div>
+          
+          {/* Sección de Análisis EMG Especializado */}
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-medium flex items-center">
+                <Brain className="h-5 w-5 text-purple-600 mr-2" />
+                Análisis Especializado EMG
+              </h3>
+              <button
+                onClick={() => setShowEmgAiAnalysis(!showEmgAiAnalysis)}
+                className="text-sm text-purple-600 hover:text-purple-800 flex items-center"
+              >
+                {showEmgAiAnalysis ? 'Ocultar análisis especializado' : 'Mostrar análisis especializado'}
+              </button>
+            </div>
+            
+            {showEmgAiAnalysis && (
+              <EMGAIAnalysisPanel 
+                emgData={studyData}
+                patientData={getPatientDataForAI()}
+                studyId={crypto.randomUUID()} // O usar un ID real si está disponible
+                onSave={handleSaveEMGAIAnalysis}
+              />
+            )}
           </div>
           
           <div className="mb-6">

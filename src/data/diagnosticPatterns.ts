@@ -3,12 +3,22 @@ export const diagnosticPatterns = {
     name: 'Síndrome del túnel del carpo',
     description: 'Neuropatía por compresión del nervio mediano a nivel de la muñeca',
     keyFindings: [
-      { parameter: 'Latencia sensitiva del nervio mediano', condition: '>3.5ms', importance: 'high' },
-      { parameter: 'Amplitud sensitiva del nervio mediano', condition: '<20µV', importance: 'medium' },
-      { parameter: 'Latencia motora del nervio mediano', condition: '>4.5ms', importance: 'high' },
-      { parameter: 'Conducción sensitiva palma-muñeca vs. conducción antebrazo', condition: 'Asimetría', importance: 'high' }
+      { parameter: 'medianSensoryIndex.latency', condition: '>3.5', importance: 'high' },
+      { parameter: 'medianSensoryIndex.amplitude', condition: '<20', importance: 'medium' },
+      { parameter: 'medianMotor.latency', condition: '>4.5', importance: 'high' },
+      { parameter: 'combinedSensoryIndex', condition: '>0.9', importance: 'high' },
+      { parameter: 'fResponseDiff', condition: '>2', importance: 'medium' },
+      { parameter: 'palmDiff', condition: '>0.3', importance: 'medium' }
     ],
-    protocolSteps: ['medianSensory', 'medianMotor']
+    protocolSteps: [
+      'medianMotor', 
+      'ulnarMotor', 
+      'medianSensory', 
+      'ulnarSensory', 
+      'radialSensory', 
+      'combinedIndex',
+      'fResponses'
+    ]
   },
   ulnarElbow: {
     name: 'Neuropatía cubital en el codo',
